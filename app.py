@@ -49,7 +49,7 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-MODEL_NAME = "gemini-2.5-flash"  # fast + cheap, good for iterating during dev
+MODEL_NAME = "MODEL_NAME = "gemini-3.6-flash""  # fast + cheap, good for iterating during dev
 
 # ---------------------------------------------------------------------------
 # UI
