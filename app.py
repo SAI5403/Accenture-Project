@@ -14,6 +14,7 @@ import time
 import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
+from responsibility_checker import check_responsibility
 
 load_dotenv()  # reads GEMINI_API_KEY from a local .env file, if present
 
@@ -81,6 +82,20 @@ if generate:
     st.divider()
     st.subheader("AI Response")
     st.write(response.text)
+
+    responsibility_result = check_responsibility(response.text)
+
+st.divider()
+st.subheader("Responsibility Risk Check")
+
+st.metric("Responsibility Risk Score", f"{responsibility_result['score']} / 100")
+
+if responsibility_result["flags"]:
+    st.warning("Issues detected:")
+    for flag in responsibility_result["flags"]:
+        st.write(f"- {flag}")
+else:
+    st.success("No major responsibility risks detected.")
 
     # --- Raw signals captured now, used by Phase 1D (Cost Risk) later -----
     usage = getattr(response, "usage_metadata", None)
