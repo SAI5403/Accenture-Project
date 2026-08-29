@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 2A
-AI Risk Budget added to Phase 1 risk pipeline.
+ControlPlane.ai - Phase 2B
+AI Risk Budget + Blast Radius added to the risk pipeline.
 """
 
 import os
@@ -16,6 +16,7 @@ from cost_checker import check_cost
 from risk_fusion import fuse_risk
 from decision_engine import decide
 from risk_profiles import RISK_PROFILES, DEFAULT_PROFILE_NAME
+from blast_radius import estimate_blast_radius
 
 load_dotenv()
 
@@ -46,7 +47,7 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 2A: AI Risk Budget + Risk Decision Engine")
+st.caption("Phase 2B: AI Risk Budget + Blast Radius")
 
 selected_profile_name = st.selectbox(
     "AI Risk Budget",
@@ -135,6 +136,14 @@ if generate:
         overrides=risk_profile.overrides,
     )
 
+    blast_radius_result = estimate_blast_radius(
+        decision_result.action,
+        fusion_result.overall_score,
+        risk_profile.reach,
+        risk_profile.reach_label,
+        risk_profile.severity_baseline,
+    )
+
     st.divider()
     st.subheader("AI Response")
     st.write(response_text)
@@ -160,6 +169,19 @@ if generate:
         )
 
     for reason in decision_result.reasons:
+        st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("Blast Radius")
+
+    st.metric("Blast Radius", blast_radius_result.rating)
+
+    if blast_radius_result.contained:
+        st.success("Potential harm is contained before reaching users.")
+    else:
+        st.warning("Response may reach users, so business impact must be monitored.")
+
+    for reason in blast_radius_result.reasons:
         st.write(f"- {reason}")
 
     st.divider()
@@ -238,6 +260,11 @@ if generate:
             "decision": decision_result.action,
             "base_decision": decision_result.base_decision,
             "escalated": decision_result.escalated,
+            "blast_radius": {
+                "rating": blast_radius_result.rating,
+                "contained": blast_radius_result.contained,
+                "reasons": blast_radius_result.reasons,
+            },
             "reasons": decision_result.reasons,
             "raw_signals": {
                 "input_tokens": input_tokens,
