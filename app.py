@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 2D
-Human Review Queue added for VERIFY/BLOCK decisions.
+ControlPlane.ai - Phase 2E
+Adaptive Verification added.
 """
 
 import os
@@ -13,13 +13,14 @@ from dotenv import load_dotenv
 
 from responsibility_checker import check_responsibility
 from performance_checker import check_performance
-from cost_checker import check_cost
+from cost_checker import check_cost, estimate_cost_usd
 from risk_fusion import fuse_risk
 from decision_engine import decide
 from risk_profiles import RISK_PROFILES, DEFAULT_PROFILE_NAME
 from blast_radius import estimate_blast_radius
 from decision_passport import build_decision_passport
 from human_escalation import create_item, needs_human_review, pending_items, resolve
+from adaptive_verification import adaptive_verify
 
 load_dotenv()
 
@@ -47,10 +48,6 @@ def get_api_key():
         return st.text_input("GEMINI_API_KEY", type="password")
 
 
-def queue_item_exists(queue, item_id):
-    return any(item.id == item_id for item in queue)
-
-
 if "review_queue" not in st.session_state:
     st.session_state.review_queue = []
 
@@ -58,7 +55,7 @@ if "review_queue" not in st.session_state:
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 2D: Human Review Queue")
+st.caption("Phase 2E: Adaptive Verification")
 
 selected_profile_name = st.selectbox(
     "AI Risk Budget",
@@ -71,7 +68,8 @@ risk_profile = RISK_PROFILES[selected_profile_name]
 st.info(
     f"**{risk_profile.name}**: {risk_profile.description}\n\n"
     f"Reach: {risk_profile.reach_label}\n\n"
-    f"Severity: {risk_profile.severity_baseline}"
+    f"Severity: {risk_profile.severity_baseline}\n\n"
+    f"Adaptive verification threshold: {risk_profile.adaptive_threshold}/100"
 )
 
 if not api_key:
@@ -131,6 +129,26 @@ if generate:
     responsibility_score = responsibility_result.get("score", 0)
     responsibility_flags = responsibility_result.get("flags", [])
     responsibility_action = responsibility_result.get("action", "Allow")
+
+    initial_fusion_result = fuse_risk(
+        performance_result.score,
+        cost_result.score,
+        responsibility_score,
+    )
+
+    verification_result = adaptive_verify(
+        model=model,
+        prompt=prompt,
+        response_text=response_text,
+        evidence=evidence,
+        fast_overall_score=initial_fusion_result.overall_score,
+        threshold=risk_profile.adaptive_threshold,
+        current_performance_score=performance_result.score,
+        estimate_cost_fn=estimate_cost_usd,
+    )
+
+    if verification_result.escalated_performance_score is not None:
+        performance_result.score = verification_result.escalated_performance_score
 
     fusion_result = fuse_risk(
         performance_result.score,
@@ -215,6 +233,26 @@ if generate:
         )
 
     for reason in decision_result.reasons:
+        st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("Adaptive Verification")
+
+    st.metric("Verification Path", verification_result.path)
+
+    if verification_result.triggered:
+        st.warning("Deep verification was triggered.")
+        st.write(f"Verifier verdict: **{verification_result.verdict}**")
+        st.write(f"Verifier latency: **{verification_result.verifier_latency_ms} ms**")
+        st.write(f"Verifier cost: **${verification_result.verifier_cost_usd:.6f}**")
+
+        if verification_result.verifier_notes:
+            st.write("Verifier notes:")
+            st.write(verification_result.verifier_notes)
+    else:
+        st.success("Fast path used. Extra verifier call skipped.")
+
+    for reason in verification_result.reasons:
         st.write(f"- {reason}")
 
     st.divider()
@@ -316,7 +354,12 @@ if generate:
     st.divider()
     st.subheader("Cost Risk Check")
 
-    st.write(f"Estimated call cost: **${cost_result.estimated_cost_usd:.6f}**")
+    st.write(f"Estimated response call cost: **${cost_result.estimated_cost_usd:.6f}**")
+    st.write(f"Verifier call cost: **${verification_result.verifier_cost_usd:.6f}**")
+    st.write(
+        f"Total estimated cost: "
+        f"**${cost_result.estimated_cost_usd + verification_result.verifier_cost_usd:.6f}**"
+    )
     st.write(f"Output token ratio: **{cost_result.output_token_ratio}x**")
 
     for reason in cost_result.reasons:
