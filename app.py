@@ -1,10 +1,11 @@
 """
-ControlPlane.ai - Phase 2C
-Decision Passport upgraded for auditability.
+ControlPlane.ai - Phase 2D
+Human Review Queue added for VERIFY/BLOCK decisions.
 """
 
 import os
 import time
+from uuid import uuid4
 
 import streamlit as st
 import google.generativeai as genai
@@ -18,6 +19,7 @@ from decision_engine import decide
 from risk_profiles import RISK_PROFILES, DEFAULT_PROFILE_NAME
 from blast_radius import estimate_blast_radius
 from decision_passport import build_decision_passport
+from human_escalation import create_item, needs_human_review, pending_items, resolve
 
 load_dotenv()
 
@@ -45,10 +47,18 @@ def get_api_key():
         return st.text_input("GEMINI_API_KEY", type="password")
 
 
+def queue_item_exists(queue, item_id):
+    return any(item.id == item_id for item in queue)
+
+
+if "review_queue" not in st.session_state:
+    st.session_state.review_queue = []
+
+
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 2C: Auditable Decision Passport")
+st.caption("Phase 2D: Human Review Queue")
 
 selected_profile_name = st.selectbox(
     "AI Risk Budget",
@@ -163,6 +173,20 @@ if generate:
         latency_ms=latency_ms,
     )
 
+    if needs_human_review(decision_result.action):
+        item_id = str(uuid4())[:8]
+
+        review_item = create_item(
+            item_id=item_id,
+            prompt=prompt,
+            response=response_text,
+            decision_action=decision_result.action,
+            overall_score=fusion_result.overall_score,
+            reasons=decision_result.reasons,
+        )
+
+        st.session_state.review_queue.append(review_item)
+
     st.divider()
     st.subheader("AI Response")
     st.write(response_text)
@@ -181,6 +205,9 @@ if generate:
 
     st.markdown(f"## Decision: {decision_label}")
 
+    if needs_human_review(decision_result.action):
+        st.warning("This response has been added to the Human Review Queue.")
+
     if decision_result.escalated:
         st.warning(
             f"Escalated from {decision_result.base_decision} to "
@@ -189,6 +216,49 @@ if generate:
 
     for reason in decision_result.reasons:
         st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("Human Review Queue")
+
+    queue = st.session_state.review_queue
+    pending = pending_items(queue)
+
+    st.metric("Pending Review Items", len(pending))
+
+    if pending:
+        for item in pending:
+            with st.expander(
+                f"Review {item.id} - {item.decision} - Risk {item.overall_score}/100",
+                expanded=True,
+            ):
+                st.write("Prompt:")
+                st.write(item.prompt)
+
+                st.write("AI Response:")
+                st.write(item.response)
+
+                st.write("Reasons:")
+                for reason in item.reasons:
+                    st.write(f"- {reason}")
+
+                col_a, col_b, col_c = st.columns(3)
+
+                with col_a:
+                    if st.button("Approve", key=f"approve_{item.id}"):
+                        resolve(queue, item.id, "APPROVED")
+                        st.rerun()
+
+                with col_b:
+                    if st.button("Override Allow", key=f"override_{item.id}"):
+                        resolve(queue, item.id, "OVERRIDE_ALLOW")
+                        st.rerun()
+
+                with col_c:
+                    if st.button("Confirm Block", key=f"block_{item.id}"):
+                        resolve(queue, item.id, "CONFIRMED_BLOCK")
+                        st.rerun()
+    else:
+        st.success("No pending human review items.")
 
     st.divider()
     st.subheader("Blast Radius")
