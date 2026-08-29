@@ -46,10 +46,13 @@ class DecisionResult:
     reasons: list = field(default_factory=list)
 
 
-def decision_from_score(score: int) -> str:
-    for ceiling, action in DEFAULT_THRESHOLDS:
+def decision_from_score(score: int, thresholds=None) -> str:
+    thresholds = thresholds or DEFAULT_THRESHOLDS
+
+    for ceiling, action in thresholds:
         if score < ceiling:
             return action
+
     return "BLOCK"
 
 
@@ -58,14 +61,19 @@ def decide(
     performance_score: int,
     cost_score: int,
     responsibility_score: int,
+    thresholds=None,
+    overrides=None,
 ) -> DecisionResult:
+    thresholds = thresholds or DEFAULT_THRESHOLDS
+    overrides = overrides or DEFAULT_OVERRIDES
+
     dimension_scores = {
         "performance": performance_score or 0,
         "cost": cost_score or 0,
         "responsibility": responsibility_score or 0,
     }
 
-    base_decision = decision_from_score(overall_score)
+    base_decision = decision_from_score(overall_score, thresholds)
     final_decision = base_decision
 
     reasons = [
@@ -74,7 +82,7 @@ def decide(
 
     triggered_dimensions = set()
 
-    for dimension, threshold, action, reason in DEFAULT_OVERRIDES:
+    for dimension, threshold, action, reason in overrides:
         if dimension in triggered_dimensions:
             continue
 
