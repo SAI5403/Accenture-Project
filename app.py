@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 2B
-AI Risk Budget + Blast Radius added to the risk pipeline.
+ControlPlane.ai - Phase 2C
+Decision Passport upgraded for auditability.
 """
 
 import os
@@ -17,6 +17,7 @@ from risk_fusion import fuse_risk
 from decision_engine import decide
 from risk_profiles import RISK_PROFILES, DEFAULT_PROFILE_NAME
 from blast_radius import estimate_blast_radius
+from decision_passport import build_decision_passport
 
 load_dotenv()
 
@@ -47,7 +48,7 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 2B: AI Risk Budget + Blast Radius")
+st.caption("Phase 2C: Auditable Decision Passport")
 
 selected_profile_name = st.selectbox(
     "AI Risk Budget",
@@ -142,6 +143,24 @@ if generate:
         risk_profile.reach,
         risk_profile.reach_label,
         risk_profile.severity_baseline,
+    )
+
+    decision_passport = build_decision_passport(
+        prompt=prompt,
+        response_text=response_text,
+        evidence=evidence,
+        risk_profile=risk_profile,
+        performance_result=performance_result,
+        cost_result=cost_result,
+        responsibility_score=responsibility_score,
+        responsibility_flags=responsibility_flags,
+        fusion_result=fusion_result,
+        decision_result=decision_result,
+        blast_radius_result=blast_radius_result,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        latency_ms=latency_ms,
     )
 
     st.divider()
@@ -248,33 +267,7 @@ if generate:
     st.divider()
     st.subheader("Decision Passport")
 
-    st.json(
-        {
-            "risk_profile": risk_profile.name,
-            "scores": {
-                "performance": performance_result.score,
-                "cost": cost_result.score,
-                "responsibility": responsibility_score,
-                "overall": fusion_result.overall_score,
-            },
-            "decision": decision_result.action,
-            "base_decision": decision_result.base_decision,
-            "escalated": decision_result.escalated,
-            "blast_radius": {
-                "rating": blast_radius_result.rating,
-                "contained": blast_radius_result.contained,
-                "reasons": blast_radius_result.reasons,
-            },
-            "reasons": decision_result.reasons,
-            "raw_signals": {
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "total_tokens": total_tokens,
-                "latency_ms": latency_ms,
-                "estimated_cost_usd": cost_result.estimated_cost_usd,
-            },
-        }
-    )
+    st.json(decision_passport)
 
     st.divider()
     st.subheader("Raw Signals")
