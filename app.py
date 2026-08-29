@@ -21,7 +21,6 @@ st.set_page_config(
 
 
 def get_api_key():
-    """Read Gemini API key from Streamlit secrets, env, or sidebar input."""
     try:
         key = st.secrets.get("GEMINI_API_KEY")
     except Exception:
@@ -35,17 +34,16 @@ def get_api_key():
 
     with st.sidebar:
         st.markdown("### API key")
-        st.caption("Paste your Gemini API key for this session only.")
         return st.text_input("GEMINI_API_KEY", type="password")
 
 
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Real-Time Control Layer for AI - Phase 1B: Responsibility Check")
+st.caption("Phase 1B: Gemini Response + Responsibility Risk Check")
 
 if not api_key:
-    st.warning("Enter a Gemini API key in Streamlit Secrets or in the sidebar.")
+    st.warning("Enter Gemini API key in Streamlit Secrets or sidebar.")
     st.stop()
 
 genai.configure(api_key=api_key)
@@ -54,8 +52,8 @@ MODEL_NAME = "gemini-3.6-flash"
 
 prompt = st.text_area(
     "Prompt",
-    placeholder="e.g. Write a customer support response for a refund request.",
-    height=120,
+    placeholder="Example: My email is test@gmail.com and phone number is 9876543210. Write a support response.",
+    height=130,
 )
 
 generate = st.button("Generate Response", type="primary", use_container_width=True)
@@ -69,6 +67,7 @@ if generate:
 
     with st.spinner("Calling Gemini..."):
         start = time.time()
+
         try:
             response = model.generate_content(prompt)
         except Exception as e:
@@ -85,24 +84,24 @@ if generate:
 
     responsibility_result = check_responsibility(response_text)
 
-risk_score = responsibility_result.get("score", 0)
-risk_flags = responsibility_result.get("flags", [])
-risk_action = responsibility_result.get("action", "Allow")
+    risk_score = responsibility_result.get("score", 0)
+    risk_flags = responsibility_result.get("flags", [])
+    risk_action = responsibility_result.get("action", "Allow")
 
-st.divider()
-st.subheader("Responsibility Risk Check")
+    st.divider()
+    st.subheader("Responsibility Risk Check")
+    st.metric("Responsibility Risk Score", f"{risk_score} / 100")
+    st.write(f"Recommended Action: **{risk_action}**")
 
-st.metric("Responsibility Risk Score", f"{risk_score} / 100")
-st.write(f"Recommended Action: **{risk_action}**")
-
-if risk_flags:
-    st.warning("Issues detected:")
-    for flag in risk_flags:
-        st.write(f"- {flag}")
-else:
-    st.success("No major responsibility risks detected.")
+    if risk_flags:
+        st.warning("Issues detected:")
+        for flag in risk_flags:
+            st.write(f"- {flag}")
+    else:
+        st.success("No major responsibility risks detected.")
 
     usage = getattr(response, "usage_metadata", None)
+
     input_tokens = getattr(usage, "prompt_token_count", None) if usage else None
     output_tokens = getattr(usage, "candidates_token_count", None) if usage else None
     total_tokens = getattr(usage, "total_token_count", None) if usage else None
@@ -115,8 +114,3 @@ else:
     c2.metric("Output tokens", output_tokens if output_tokens is not None else "-")
     c3.metric("Total tokens", total_tokens if total_tokens is not None else "-")
     c4.metric("Latency", f"{latency_ms} ms")
-
-    st.caption(
-        "Phase 1A proves Prompt -> Gemini -> Response. "
-        "Phase 1B adds Responsibility Risk checking for privacy, safety, and bias."
-    )
