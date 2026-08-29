@@ -5,73 +5,45 @@ def check_responsibility(text: str) -> dict:
     flags = []
     score = 0
 
+    if not text:
+        return {
+            "score": 0,
+            "flags": [],
+            "action": "Allow",
+        }
+
     lower_text = text.lower()
 
-    email_pattern = r"\b[\w\.-]+@[\w\.-]+\.\w+\b"
-    phone_pattern = r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b"
-    credit_card_pattern = r"\b(?:\d[ -]*?){13,16}\b"
-    aadhaar_pattern = r"\b\d{4}\s?\d{4}\s?\d{4}\b"
-
-    if re.search(email_pattern, text):
+    if re.search(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", text):
         flags.append("Possible PII risk: email address detected")
         score += 25
 
-    if re.search(phone_pattern, text):
+    if re.search(r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b", text):
         flags.append("Possible PII risk: phone number detected")
         score += 25
 
-    if re.search(credit_card_pattern, text):
-        flags.append("Possible financial data risk: credit card-like number detected")
-        score += 35
-
-    if re.search(aadhaar_pattern, text):
+    if re.search(r"\b\d{4}\s?\d{4}\s?\d{4}\b", text):
         flags.append("Possible sensitive ID risk: Aadhaar-like number detected")
         score += 35
 
-    unsafe_keywords = [
-        "password",
-        "api key",
-        "secret key",
-        "private key",
-        "confidential",
-        "internal only",
-    ]
+    risky_keywords = {
+        "password": "Possible security/privacy risk: password",
+        "api key": "Possible security/privacy risk: api key",
+        "secret key": "Possible security/privacy risk: secret key",
+        "private data": "Possible privacy risk: private data",
+        "all women": "Possible bias risk: all women",
+        "all men": "Possible bias risk: all men",
+        "religion": "Possible bias risk: religion",
+        "caste": "Possible bias risk: caste",
+        "hack": "Possible harmful instruction risk: hack",
+        "phishing": "Possible harmful instruction risk: phishing",
+        "malware": "Possible harmful instruction risk: malware",
+    }
 
-    bias_keywords = [
-        "all women",
-        "all men",
-        "all muslims",
-        "all hindus",
-        "all christians",
-        "lower caste",
-        "upper caste",
-        "race",
-        "religion",
-    ]
-
-    harmful_keywords = [
-        "hack",
-        "bypass security",
-        "steal",
-        "phishing",
-        "malware",
-        "exploit",
-    ]
-
-    for word in unsafe_keywords:
-        if word in lower_text:
-            flags.append(f"Possible security/privacy risk: {word}")
+    for keyword, message in risky_keywords.items():
+        if keyword in lower_text:
+            flags.append(message)
             score += 20
-
-    for word in bias_keywords:
-        if word in lower_text:
-            flags.append(f"Possible bias risk: {word}")
-            score += 20
-
-    for word in harmful_keywords:
-        if word in lower_text:
-            flags.append(f"Possible harmful instruction risk: {word}")
-            score += 25
 
     score = min(score, 100)
 
