@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 1A + 1B + 1C + 1D + 1E
-Prompt -> Gemini -> Responsibility Risk -> Performance Risk -> Cost Risk -> Risk Fusion
+ControlPlane.ai - Phase 1A to 1F
+Prompt -> Gemini -> Risk Checks -> Risk Fusion -> Decision Engine
 """
 
 import os
@@ -14,11 +14,12 @@ from responsibility_checker import check_responsibility
 from performance_checker import check_performance
 from cost_checker import check_cost
 from risk_fusion import fuse_risk
+from decision_engine import decide
 
 load_dotenv()
 
 st.set_page_config(
-    page_title="ControlPlane.ai - Phase 1E",
+    page_title="ControlPlane.ai",
     page_icon="CP",
     layout="centered",
 )
@@ -44,7 +45,7 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 1E: Performance + Cost + Responsibility -> Overall Risk")
+st.caption("Phase 1 Complete: Performance + Cost + Responsibility -> Decision")
 
 if not api_key:
     st.warning("Enter Gemini API key in Streamlit Secrets or sidebar.")
@@ -110,9 +111,39 @@ if generate:
         responsibility_score,
     )
 
+    decision_result = decide(
+        fusion_result.overall_score,
+        performance_result.score,
+        cost_result.score,
+        responsibility_score,
+    )
+
     st.divider()
     st.subheader("AI Response")
     st.write(response_text)
+
+    st.divider()
+    st.subheader("ControlPlane Decision")
+
+    decision_labels = {
+        "ALLOW": "ALLOW",
+        "MONITOR": "ALLOW + MONITOR",
+        "VERIFY": "REWRITE / VERIFY",
+        "BLOCK": "BLOCK / HUMAN REVIEW",
+    }
+
+    decision_label = decision_labels.get(decision_result.action, decision_result.action)
+
+    st.markdown(f"## Decision: {decision_label}")
+
+    if decision_result.escalated:
+        st.warning(
+            f"Escalated from {decision_result.base_decision} to "
+            f"{decision_result.action} because of a high individual risk."
+        )
+
+    for reason in decision_result.reasons:
+        st.write(f"- {reason}")
 
     st.divider()
     st.subheader("Overall Risk Fusion")
@@ -166,7 +197,7 @@ if generate:
     st.divider()
     st.subheader("Responsibility Risk Check")
 
-    st.write(f"Recommended Action: **{responsibility_action}**")
+    st.write(f"Initial Responsibility Action: **{responsibility_action}**")
 
     if responsibility_flags:
         st.warning("Issues detected:")
@@ -174,6 +205,31 @@ if generate:
             st.write(f"- {flag}")
     else:
         st.success("No major responsibility risks detected.")
+
+    st.divider()
+    st.subheader("Decision Passport")
+
+    st.json(
+        {
+            "scores": {
+                "performance": performance_result.score,
+                "cost": cost_result.score,
+                "responsibility": responsibility_score,
+                "overall": fusion_result.overall_score,
+            },
+            "decision": decision_result.action,
+            "base_decision": decision_result.base_decision,
+            "escalated": decision_result.escalated,
+            "reasons": decision_result.reasons,
+            "raw_signals": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "latency_ms": latency_ms,
+                "estimated_cost_usd": cost_result.estimated_cost_usd,
+            },
+        }
+    )
 
     st.divider()
     st.subheader("Raw Signals")
