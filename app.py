@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 1A to 1F
-Prompt -> Gemini -> Risk Checks -> Risk Fusion -> Decision Engine
+ControlPlane.ai - Phase 2A
+AI Risk Budget added to Phase 1 risk pipeline.
 """
 
 import os
@@ -15,6 +15,7 @@ from performance_checker import check_performance
 from cost_checker import check_cost
 from risk_fusion import fuse_risk
 from decision_engine import decide
+from risk_profiles import RISK_PROFILES, DEFAULT_PROFILE_NAME
 
 load_dotenv()
 
@@ -45,7 +46,21 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 1 Complete: Performance + Cost + Responsibility -> Decision")
+st.caption("Phase 2A: AI Risk Budget + Risk Decision Engine")
+
+selected_profile_name = st.selectbox(
+    "AI Risk Budget",
+    list(RISK_PROFILES.keys()),
+    index=list(RISK_PROFILES.keys()).index(DEFAULT_PROFILE_NAME),
+)
+
+risk_profile = RISK_PROFILES[selected_profile_name]
+
+st.info(
+    f"**{risk_profile.name}**: {risk_profile.description}\n\n"
+    f"Reach: {risk_profile.reach_label}\n\n"
+    f"Severity: {risk_profile.severity_baseline}"
+)
 
 if not api_key:
     st.warning("Enter Gemini API key in Streamlit Secrets or sidebar.")
@@ -116,6 +131,8 @@ if generate:
         performance_result.score,
         cost_result.score,
         responsibility_score,
+        thresholds=risk_profile.decision_thresholds,
+        overrides=risk_profile.overrides,
     )
 
     st.divider()
@@ -139,7 +156,7 @@ if generate:
     if decision_result.escalated:
         st.warning(
             f"Escalated from {decision_result.base_decision} to "
-            f"{decision_result.action} because of a high individual risk."
+            f"{decision_result.action} because of the selected AI Risk Budget."
         )
 
     for reason in decision_result.reasons:
@@ -211,6 +228,7 @@ if generate:
 
     st.json(
         {
+            "risk_profile": risk_profile.name,
             "scores": {
                 "performance": performance_result.score,
                 "cost": cost_result.score,
