@@ -85,19 +85,22 @@ if generate:
 
     responsibility_result = check_responsibility(response_text)
 
-    st.divider()
-    st.subheader("Responsibility Risk Check")
-    st.metric(
-        "Responsibility Risk Score",
-        f"{responsibility_result['score']} / 100",
-    )
+risk_score = responsibility_result.get("score", 0)
+risk_flags = responsibility_result.get("flags", [])
+risk_action = responsibility_result.get("action", "Allow")
 
-    if responsibility_result["flags"]:
-        st.warning("Issues detected:")
-        for flag in responsibility_result["flags"]:
-            st.write(f"- {flag}")
-    else:
-        st.success("No major responsibility risks detected.")
+st.divider()
+st.subheader("Responsibility Risk Check")
+
+st.metric("Responsibility Risk Score", f"{risk_score} / 100")
+st.write(f"Recommended Action: **{risk_action}**")
+
+if risk_flags:
+    st.warning("Issues detected:")
+    for flag in risk_flags:
+        st.write(f"- {flag}")
+else:
+    st.success("No major responsibility risks detected.")
 
     usage = getattr(response, "usage_metadata", None)
     input_tokens = getattr(usage, "prompt_token_count", None) if usage else None
