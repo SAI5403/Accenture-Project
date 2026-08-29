@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 1A + 1B + 1C + 1D
-Prompt -> Gemini -> Responsibility Risk -> Performance Risk -> Cost Risk
+ControlPlane.ai - Phase 1A + 1B + 1C + 1D + 1E
+Prompt -> Gemini -> Responsibility Risk -> Performance Risk -> Cost Risk -> Risk Fusion
 """
 
 import os
@@ -13,11 +13,12 @@ from dotenv import load_dotenv
 from responsibility_checker import check_responsibility
 from performance_checker import check_performance
 from cost_checker import check_cost
+from risk_fusion import fuse_risk
 
 load_dotenv()
 
 st.set_page_config(
-    page_title="ControlPlane.ai - Phase 1D",
+    page_title="ControlPlane.ai - Phase 1E",
     page_icon="CP",
     layout="centered",
 )
@@ -43,7 +44,7 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 1D: Responsibility + Performance + Cost Risk")
+st.caption("Phase 1E: Performance + Cost + Responsibility -> Overall Risk")
 
 if not api_key:
     st.warning("Enter Gemini API key in Streamlit Secrets or sidebar.")
@@ -99,16 +100,33 @@ if generate:
     performance_result = check_performance(response_text, evidence)
     cost_result = check_cost(input_tokens, output_tokens, latency_ms)
 
-    risk_score = responsibility_result.get("score", 0)
-    risk_flags = responsibility_result.get("flags", [])
-    risk_action = responsibility_result.get("action", "Allow")
+    responsibility_score = responsibility_result.get("score", 0)
+    responsibility_flags = responsibility_result.get("flags", [])
+    responsibility_action = responsibility_result.get("action", "Allow")
+
+    fusion_result = fuse_risk(
+        performance_result.score,
+        cost_result.score,
+        responsibility_score,
+    )
 
     st.divider()
     st.subheader("AI Response")
     st.write(response_text)
 
     st.divider()
-    st.subheader("ControlPlane Risk Analysis")
+    st.subheader("Overall Risk Fusion")
+
+    overall_score = fusion_result.overall_score
+
+    st.metric("Overall Risk Score", f"{overall_score} / 100")
+    st.progress(overall_score / 100)
+
+    for reason in fusion_result.reasons:
+        st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("Risk Breakdown")
 
     col1, col2, col3 = st.columns(3)
 
@@ -119,7 +137,7 @@ if generate:
         st.metric("Cost Risk", f"{cost_result.score} / 100")
 
     with col3:
-        st.metric("Responsibility Risk", f"{risk_score} / 100")
+        st.metric("Responsibility Risk", f"{responsibility_score} / 100")
 
     st.divider()
     st.subheader("Performance Risk Check")
@@ -148,11 +166,11 @@ if generate:
     st.divider()
     st.subheader("Responsibility Risk Check")
 
-    st.write(f"Recommended Action: **{risk_action}**")
+    st.write(f"Recommended Action: **{responsibility_action}**")
 
-    if risk_flags:
+    if responsibility_flags:
         st.warning("Issues detected:")
-        for flag in risk_flags:
+        for flag in responsibility_flags:
             st.write(f"- {flag}")
     else:
         st.success("No major responsibility risks detected.")
