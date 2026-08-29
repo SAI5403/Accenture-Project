@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 1A + Phase 1B
-Prompt -> Gemini API -> Response -> Responsibility Check
+ControlPlane.ai - Phase 1A + 1B + 1C
+Prompt -> Gemini API -> Response -> Responsibility Check -> Performance Check
 """
 
 import os
@@ -10,11 +10,12 @@ import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
 from responsibility_checker import check_responsibility
+from performance_checker import check_performance
 
 load_dotenv()
 
 st.set_page_config(
-    page_title="ControlPlane.ai - Phase 1B",
+    page_title="ControlPlane.ai - Phase 1C",
     page_icon="🧭",
     layout="centered",
 )
@@ -40,7 +41,7 @@ def get_api_key():
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 1B: Gemini Response + Responsibility Risk Check")
+st.caption("Phase 1C: Gemini Response + Responsibility Risk + Performance Risk")
 
 if not api_key:
     st.warning("Enter Gemini API key in Streamlit Secrets or sidebar.")
@@ -52,8 +53,17 @@ MODEL_NAME = "gemini-3.6-flash"
 
 prompt = st.text_area(
     "Prompt",
-    placeholder="Example: My email is test@gmail.com and phone number is 9876543210. Write a support response.",
-    height=130,
+    placeholder="Example: What is our refund policy?",
+    height=120,
+)
+
+evidence = st.text_area(
+    "Evidence / Source Text",
+    placeholder=(
+        "Paste source text here. Example: Our refund policy allows returns "
+        "within 30 days with a valid receipt."
+    ),
+    height=120,
 )
 
 generate = st.button("Generate Response", type="primary", use_container_width=True)
@@ -83,6 +93,7 @@ if generate:
     st.write(response_text)
 
     responsibility_result = check_responsibility(response_text)
+    performance_result = check_performance(response_text, evidence)
 
     risk_score = responsibility_result.get("score", 0)
     risk_flags = responsibility_result.get("flags", [])
@@ -99,6 +110,22 @@ if generate:
             st.write(f"- {flag}")
     else:
         st.success("No major responsibility risks detected.")
+
+    st.divider()
+    st.subheader("Performance Risk Check")
+    st.metric("Performance Risk Score", f"{performance_result.score} / 100")
+
+    for reason in performance_result.reasons:
+        st.write(f"- {reason}")
+
+    if performance_result.unsupported_sentences:
+        st.warning("Unsupported sentences detected:")
+        for sentence in performance_result.unsupported_sentences:
+            st.write(f"- {sentence}")
+    elif not performance_result.evidence_used:
+        st.info("Paste evidence/source text above for a stronger performance check.")
+    else:
+        st.success("Response is supported by the provided evidence.")
 
     usage = getattr(response, "usage_metadata", None)
 
