@@ -1,6 +1,6 @@
 """
-ControlPlane.ai - Phase 2E
-Adaptive Verification added.
+ControlPlane.ai
+Full prototype with Demo Scenarios + Custom testing.
 """
 
 import os
@@ -21,6 +21,7 @@ from blast_radius import estimate_blast_radius
 from decision_passport import build_decision_passport
 from human_escalation import create_item, needs_human_review, pending_items, resolve
 from adaptive_verification import adaptive_verify
+from demo_scenarios import DEMO_SCENARIOS
 
 load_dotenv()
 
@@ -55,12 +56,26 @@ if "review_queue" not in st.session_state:
 api_key = get_api_key()
 
 st.title("ControlPlane.ai")
-st.caption("Phase 2E: Adaptive Verification")
+st.caption("Enterprise AI Risk Decision Layer")
+
+scenario_name = st.selectbox(
+    "Demo Scenario",
+    list(DEMO_SCENARIOS.keys()),
+)
+
+st.caption(
+    "Choose a demo scenario for a quick walkthrough, or select Custom to test your own prompt and evidence."
+)
+
+scenario = DEMO_SCENARIOS[scenario_name]
+
+profile_names = list(RISK_PROFILES.keys())
+default_profile = scenario.get("profile", DEFAULT_PROFILE_NAME)
 
 selected_profile_name = st.selectbox(
     "AI Risk Budget",
-    list(RISK_PROFILES.keys()),
-    index=list(RISK_PROFILES.keys()).index(DEFAULT_PROFILE_NAME),
+    profile_names,
+    index=profile_names.index(default_profile),
 )
 
 risk_profile = RISK_PROFILES[selected_profile_name]
@@ -82,16 +97,13 @@ MODEL_NAME = "gemini-3.6-flash"
 
 prompt = st.text_area(
     "Prompt",
-    placeholder="Example: What is our refund policy?",
+    value=scenario["prompt"],
     height=120,
 )
 
 evidence = st.text_area(
     "Evidence / Source Text",
-    placeholder=(
-        "Paste source text here. Example: Our refund policy allows returns "
-        "within 30 days with a valid receipt."
-    ),
+    value=scenario["evidence"],
     height=120,
 )
 
